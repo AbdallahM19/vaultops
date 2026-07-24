@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+src/vaultops/__init__.py
+src/vaultops.egg-info/PKG-INFO
+src/vaultops.egg-info/SOURCES.txt
+src/vaultops.egg-info/dependency_links.txt
+src/vaultops.egg-info/top_level.txt
