@@ -25,24 +25,24 @@ def log_command(func):
 
 
 @log_command
-def handle_list(args) -> None:
-    with StorageSession(FILE_PATH, KEY_PATH) as store:
+def handle_list(args, file_path = FILE_PATH, key_path = KEY_PATH) -> None:
+    with StorageSession(file_path, key_path) as store:
         creds = store.list_all()
 
-        if args.service is not None:
-            creds = list(
-                filter(
-                    lambda entry: entry.service_name.lower() == args.service.lower(),
-                    creds
-                )
+    if args.service is not None:
+        creds = list(
+            filter(
+                lambda entry: entry.service_name.lower() == args.service.lower(),
+                creds
             )
+        )
 
-        if creds == []:
-            logger.info("No credentials stored.")
-            return
+    if creds == []:
+        logger.info("No credentials stored.")
+        return
 
-        for entry in creds:
-            logger.info(f"{entry.display_id} {entry.service_name} ({entry.username})")
+    for entry in creds:
+        logger.info(f"{entry.display_id} {entry.service_name} ({entry.username})")
 
 
 def main() -> None:
