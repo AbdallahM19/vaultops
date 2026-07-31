@@ -4,13 +4,15 @@ import json
 
 from datetime import datetime
 from dataclasses import asdict
+from vaultops.security.crypto import decrypt, encrypt
 from vaultops.models.credential import Credential
 from vaultops.exceptions import DuplicateEntryError, EntryNotFoundError, StorageError
 
 
 class JsonCredentialStorage:
-    def __init__(self, file_path: str) -> None:
+    def __init__(self, file_path: str, key: bytes) -> None:
         self.file_path = file_path
+        self.key = key
 
     def _serialize(self, data: list[Credential]) -> None:
         creds_to_dict = []
@@ -36,7 +38,10 @@ class JsonCredentialStorage:
 
         for i in data:
             x = i.copy()
-            x['created_at'] = datetime.fromisoformat(i['created_at'])
+            x.update(
+                created_at=datetime.fromisoformat(i['created_at']),
+                password=decrypt(i['password'], self.key)
+            )
             creds.append(Credential(**x))
 
         return creds
@@ -57,7 +62,10 @@ class JsonCredentialStorage:
             if i.entry_id == entry.entry_id:
                 raise DuplicateEntryError(f"entry_id '{entry.entry_id}' already exists")
 
-        data.append(entry)
+        entry_dict = vars(entry).copy()
+        entry_dict.update(password = encrypt(entry.password, self.key))
+
+        data.append(Credential(**entry_dict))
 
         self._serialize(data)
 

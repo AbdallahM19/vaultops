@@ -24,3 +24,7 @@ class DuplicateEntryError(StorageError):
 class EntryNotFoundError(StorageError):
     """Entry Not Found Error Exception"""
 
+
+class SecurityError(VaultOpsError):
+    """Security Error"""
+
