@@ -1,36 +1,48 @@
 """CLI entry"""
 
-import json
-import os
 import argparse
 
 from datetime import datetime
+from functools import wraps
 from vaultops.logging_config import setup_logging
 from vaultops.models.credential import Credential
 from vaultops.exceptions import EntryNotFoundError, StorageError, ValidationError, DuplicateEntryError
-from vaultops.storage.json_storage import JsonCredentialStorage
-from vaultops.security.crypto import generate_key
+from vaultops.storage.json_storage import StorageSession
+from vaultops.config import FILE_PATH, KEY_PATH
 
 
-KEY_PATH = "data/vault.key"
-FILE_PATH = "data/credentials.json"
 logger = setup_logging()
 
 
-def get_or_create_key(path: str) -> bytes:
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            key = f.read()
-    else:
-        key = generate_key()
-        with open(path, "wb") as f:
-            f.write(key)
-    return key
+def log_command(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.info(f"Running command: {func.__name__}")
+        res = func(*args, **kwargs)
+        logger.info(f"Finished command: {func.__name__}")
+        return res
+    return wrapper
 
-def get_or_create_credentials_file(path: str) -> None:
-    if not os.path.exists(path):
-        with open(path, "w") as f:
-            json.dump([], f)
+
+@log_command
+def handle_list(args) -> None:
+    with StorageSession(FILE_PATH, KEY_PATH) as store:
+        creds = store.list_all()
+
+        if args.service is not None:
+            creds = list(
+                filter(
+                    lambda entry: entry.service_name.lower() == args.service.lower(),
+                    creds
+                )
+            )
+
+        if creds == []:
+            logger.info("No credentials stored.")
+            return
+
+        for entry in creds:
+            logger.info(f"{entry.display_id} {entry.service_name} ({entry.username})")
 
 
 def main() -> None:
@@ -53,8 +65,6 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        get_or_create_credentials_file(FILE_PATH)
-
         match args.command:
             case "add":
                 created_at = datetime.now()
@@ -67,37 +77,15 @@ def main() -> None:
                     created_at=created_at
                 )
 
-                JsonCredentialStorage(
-                    FILE_PATH,
-                    get_or_create_key(KEY_PATH)
-                ).save(entry)
+                with StorageSession(FILE_PATH, KEY_PATH) as store:
+                    store.save(entry)
 
                 logger.info(f"Added credential: {entry.display_id}")
             case "list":
-                creds = JsonCredentialStorage(
-                    FILE_PATH,
-                    get_or_create_key(KEY_PATH)
-                ).list_all()
-
-                if args.service is not None:
-                    creds = list(
-                        filter(
-                            lambda entry: entry.service_name.lower() == args.service.lower(),
-                            creds
-                        )
-                    )
-
-                if creds == []:
-                    logger.info("No credentials stored.")
-                    return
-
-                for entry in creds:
-                    logger.info(f"{entry.display_id} {entry.service_name} ({entry.username})")
+                handle_list(args)
             case "delete":
-                JsonCredentialStorage(
-                    FILE_PATH,
-                    get_or_create_key(KEY_PATH)
-                ).delete(entry_id=args.entry_id)
+                with StorageSession(FILE_PATH, KEY_PATH) as store:
+                    store.delete(entry_id=args.entry_id)
 
                 logger.info(f"Deleted credential: {args.entry_id}")
     except ValidationError as e:
