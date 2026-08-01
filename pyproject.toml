@@ -8,6 +8,12 @@ version = "0.1.0"
 description = "A modular CLI Security & Hardware Operations Toolkit"
 readme = "README.md"
 requires-python = ">=3.12"
+dependencies=[
+    "cryptography",
+]
+
+[project.scripts]
+vaultops = "vaultops.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
