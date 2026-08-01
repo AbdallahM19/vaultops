@@ -1,0 +1,2 @@
+[console_scripts]
+vaultops = vaultops.cli:main

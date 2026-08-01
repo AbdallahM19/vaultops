@@ -5,4 +5,7 @@ Summary: A modular CLI Security & Hardware Operations Toolkit
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: cryptography
 Dynamic: license-file
+
+A modular CLI Security & Hardware Operations Toolkit
