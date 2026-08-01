@@ -4,7 +4,7 @@ import json
 
 from datetime import datetime
 from dataclasses import asdict
-from typing import Iterator
+from typing import Any, Iterator
 from vaultops.security.crypto import decrypt, encrypt
 from vaultops.models.credential import Credential
 from vaultops.exceptions import DuplicateEntryError, EntryNotFoundError, StorageError
@@ -27,8 +27,22 @@ class JsonCredentialStorage:
         with open(self.file_path, "w") as f:
             json.dump(creds_to_dict, f, indent = 4)
 
+    def _load_data(self) -> list[dict[str, Any]]:
+        try:
+            with open(self.file_path, "r") as f:
+                data = json.load(f)
+            return data
+        except FileNotFoundError:
+            raise StorageError("The storage file not found.")
+        except json.JSONDecodeError:
+            raise StorageError("Failed to parse JSON storage file.")
+
     def list_all(self) -> list[Credential]:
         return list(self.export_all())
+
+    def convert_to_cred(self, item: dict[str, Any]) -> Credential:
+        item.update(created_at=datetime.fromisoformat(item['created_at']))
+        return Credential(**item)
 
     def get(self, entry_id: str) -> Credential:
         data = self.list_all()
@@ -40,26 +54,29 @@ class JsonCredentialStorage:
         raise EntryNotFoundError(f"entry_id '{entry_id}' not found")
 
     def save(self, entry: Credential) -> None:
-        data = self.list_all()
+        data = self._load_data()
 
         for i in data:
-            if i.entry_id == entry.entry_id:
+            if i['entry_id'] == entry.entry_id:
                 raise DuplicateEntryError(f"entry_id '{entry.entry_id}' already exists")
 
-        entry_dict = vars(entry).copy()
-        entry_dict.update(password = encrypt(entry.password, self.key))
+        creds = [
+            self.convert_to_cred(i)
+            for i in data
+        ]
 
-        data.append(Credential(**entry_dict))
+        entry.password = encrypt(entry.password, self.key)
+        creds.append(entry)
 
-        self._serialize(data)
+        self._serialize(creds)
 
     def delete(self, entry_id: str) -> None:
         is_exists = False
         entry_idx = 0
-        data = self.list_all()
+        data = self._load_data()
 
         for i, x in enumerate(data):
-            if x.entry_id == entry_id:
+            if x['entry_id'] == entry_id:
                 is_exists = True
                 entry_idx = i
                 break
@@ -69,16 +86,15 @@ class JsonCredentialStorage:
 
         data.pop(entry_idx)
 
-        self._serialize(data)
+        creds = [
+            self.convert_to_cred(i)
+            for i in data
+        ]
+
+        self._serialize(creds)
 
     def export_all(self) -> Iterator[Credential]:
-        try:
-            with open(self.file_path, "r") as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            raise StorageError("The storage file not found.")
-        except json.JSONDecodeError:
-            raise StorageError("Failed to parse JSON storage file.")
+        data = self._load_data()
 
         for i in data:
             x = i.copy()
